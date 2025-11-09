@@ -12,6 +12,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.SoundEffectPlayed;
 import net.runelite.api.events.VarbitChanged;
+import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -39,15 +40,19 @@ public class SoulflameRangePlugin extends Plugin
 	@Inject
 	private SoulflameRangeOverlay overlay;
 
+	@Inject
+	private AudioPlayer audioPlayer;
+
 	private boolean isSoulflameHornsEquipped = false;
 	private int currentRange = 0;
-	private final SoundPlayer soundPlayer = new SoundPlayer();
+	private SoundPlayer soundPlayer;
 	private final java.util.Random random = new java.util.Random();
 
 	@Override
 	protected void startUp() throws Exception
 	{
 		overlayManager.add(overlay);
+		soundPlayer = new SoundPlayer(audioPlayer);
 		// log.info("Soulflame Range plugin started!");
 	}
 
