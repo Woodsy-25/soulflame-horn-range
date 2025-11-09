@@ -7,6 +7,7 @@ import java.awt.Polygon;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.Player;
 import net.runelite.api.Perspective;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
@@ -39,10 +40,16 @@ class SoulflameRangeOverlay extends Overlay
 	public Dimension render(Graphics2D graphics)
 	{
 		boolean showRange = config.showRange();
+		boolean showRangeSquare = config.showRangeSquare();
 		boolean isEquipped = plugin.isSoulflameHornsEquipped();
 		
-		if (!showRange || !isEquipped)
+		if (!isEquipped)
 		{
+			// Still draw other players' ranges even if local player doesn't have horn
+			if (config.showOtherPlayers() && showRangeSquare)
+			{
+				drawOtherPlayersRanges(graphics);
+			}
 			return null;
 		}
 
@@ -52,13 +59,24 @@ class SoulflameRangeOverlay extends Overlay
 			return null;
 		}
 
-		// Draw range square on the game world
-		if (config.showRangeSquare() && client.getLocalPlayer() != null)
+		// Draw range square on the game world for local player (controlled by showRangeSquare)
+		if (showRangeSquare && client.getLocalPlayer() != null)
 		{
-			drawRangeSquare(graphics, range);
+			drawRangeSquare(graphics, client.getLocalPlayer().getWorldLocation(), range, config.rangeColor());
 		}
 
-		// Draw info panel
+		// Draw other players' ranges (controlled by showOtherPlayers and showRangeSquare)
+		if (config.showOtherPlayers() && showRangeSquare)
+		{
+			drawOtherPlayersRanges(graphics);
+		}
+
+		// Draw info panel (controlled by showRange)
+		if (!showRange)
+		{
+			return null;
+		}
+
 		panelComponent.getChildren().clear();
 		panelComponent.setBackgroundColor(new Color(0, 0, 0, 150));
 
@@ -75,22 +93,12 @@ class SoulflameRangeOverlay extends Overlay
 		return panelComponent.render(graphics);
 	}
 
-	private void drawRangeSquare(Graphics2D graphics, int range)
+	private void drawRangeSquare(Graphics2D graphics, WorldPoint playerWorldPoint, int range, Color rangeColor)
 	{
-		if (client.getLocalPlayer() == null)
+		if (playerWorldPoint == null)
 		{
 			return;
 		}
-
-		WorldPoint playerWorldPoint = client.getLocalPlayer().getWorldLocation();
-		LocalPoint playerLocalPoint = LocalPoint.fromWorld(client, playerWorldPoint);
-
-		if (playerLocalPoint == null)
-		{
-			return;
-		}
-
-		Color rangeColor = config.rangeColor();
 
 		// Draw a square around the player showing the range
 		// The range is the radius, so we need to draw from -range to +range
@@ -105,6 +113,18 @@ class SoulflameRangeOverlay extends Overlay
 		int[] xPoints = new int[4];
 		int[] yPoints = new int[4];
 		boolean allVisible = true;
+
+		// Get the center point for calculating offsets
+		LocalPoint centerLocal = LocalPoint.fromWorld(client, playerWorldPoint);
+		if (centerLocal == null)
+		{
+			return;
+		}
+		net.runelite.api.Point centerScreen = Perspective.localToCanvas(client, centerLocal, playerWorldPoint.getPlane());
+		if (centerScreen == null)
+		{
+			return;
+		}
 
 		for (int i = 0; i < 4; i++)
 		{
@@ -122,8 +142,23 @@ class SoulflameRangeOverlay extends Overlay
 				break;
 			}
 
-			xPoints[i] = screenPoint.getX();
-			yPoints[i] = screenPoint.getY();
+			// Extend the border outward by offsetting the screen coordinates
+			// Calculate direction from center to corner and extend it
+			int dx = screenPoint.getX() - centerScreen.getX();
+			int dy = screenPoint.getY() - centerScreen.getY();
+			// Normalize and extend by approximately half a tile (64 pixels at typical zoom)
+			double length = Math.sqrt(dx * dx + dy * dy);
+			if (length > 0)
+			{
+				int offsetPixels = 32; // Approximate half-tile offset
+				xPoints[i] = screenPoint.getX() + (int)((dx / length) * offsetPixels);
+				yPoints[i] = screenPoint.getY() + (int)((dy / length) * offsetPixels);
+			}
+			else
+			{
+				xPoints[i] = screenPoint.getX();
+				yPoints[i] = screenPoint.getY();
+			}
 		}
 
 		if (allVisible)
@@ -134,6 +169,68 @@ class SoulflameRangeOverlay extends Overlay
 			graphics.setStroke(new java.awt.BasicStroke(2));
 			graphics.drawPolygon(square);
 		}
+	}
+
+	private void drawOtherPlayersRanges(Graphics2D graphics)
+	{
+		// Check all players in the area
+		for (Player player : client.getPlayers())
+		{
+			if (player == null || player == client.getLocalPlayer())
+			{
+				continue;
+			}
+
+			// Check if player has Soulflame horn equipped by checking their appearance
+			if (hasSoulflameHorn(player))
+			{
+				WorldPoint playerWorldPoint = player.getWorldLocation();
+				if (playerWorldPoint == null)
+				{
+					continue;
+				}
+
+				// We can't get other players' varbit values directly
+				// Use the configured radius for other players
+				int otherPlayerRange = config.otherPlayersRadius();
+				
+				// Clamp to valid range (0-3)
+				if (otherPlayerRange < 0)
+				{
+					otherPlayerRange = 0;
+				}
+				else if (otherPlayerRange > 3)
+				{
+					otherPlayerRange = 3;
+				}
+				
+				// Only draw if range > 0
+				if (otherPlayerRange > 0)
+				{
+					drawRangeSquare(graphics, playerWorldPoint, otherPlayerRange, config.otherPlayersColor());
+				}
+			}
+		}
+	}
+
+	private boolean hasSoulflameHorn(Player player)
+	{
+		if (player == null)
+		{
+			return false;
+		}
+
+		// Check the player's composition for equipment
+		net.runelite.api.PlayerComposition composition = player.getPlayerComposition();
+		if (composition == null)
+		{
+			return false;
+		}
+
+		// Check the weapon slot for Soulflame horn
+		// Equipment slots: 3 = weapon
+		int weaponId = composition.getEquipmentId(net.runelite.api.kit.KitType.WEAPON);
+		return weaponId == 30759; // SOULFLAME_HORNS item ID
 	}
 }
 

@@ -7,8 +7,10 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.SoundEffectPlayed;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -39,19 +41,22 @@ public class SoulflameRangePlugin extends Plugin
 
 	private boolean isSoulflameHornsEquipped = false;
 	private int currentRange = 0;
+	private final SoundPlayer soundPlayer = new SoundPlayer();
+	private final java.util.Random random = new java.util.Random();
 
 	@Override
 	protected void startUp() throws Exception
 	{
 		overlayManager.add(overlay);
-		log.info("Soulflame Range plugin started!");
+		// log.info("Soulflame Range plugin started!");
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
 		overlayManager.remove(overlay);
-		log.debug("Soulflame Range plugin stopped!");
+		soundPlayer.stop();
+		// log.debug("Soulflame Range plugin stopped!");
 	}
 
 	@Subscribe
@@ -74,45 +79,47 @@ public class SoulflameRangePlugin extends Plugin
 		}
 
 		int containerId = container.getId();
+		// log.debug("ItemContainerChanged - Container ID: {} (94=Equipment, 93=Inventory)", containerId);
 		
+		// Check equipment container (94) to see if horn is equipped
 		if (containerId == 94)
 		{
-			logAllEquipmentSlots(container);
+			// logAllEquipmentSlots(container);
 			checkEquippedHorns(container);
 		}
-		else
-		{
-			log.debug("Ignoring container {} - not equipment", containerId);
-		}
+		// else
+		// {
+		// 	log.debug("Ignoring container {} - not equipment", containerId);
+		// }
 	}
 
-	private void logAllEquipmentSlots(ItemContainer equipment)
-	{
-		if (equipment == null)
-		{
-			log.debug("Equipment container is null");
-			return;
-		}
-
-		log.info("=== Equipment Slots ===");
-		for (int i = 0; i < equipment.size(); i++)
-		{
-			Item item = equipment.getItem(i);
-			if (item != null)
-			{
-				log.info("Slot {}: Item ID {} (Quantity: {})", i, item.getId(), item.getQuantity());
-			}
-			else
-			{
-				log.debug("Slot {}: Empty", i);
-			}
-		}
-		log.info("=======================");
-	}
+	// private void logAllEquipmentSlots(ItemContainer equipment)
+	// {
+	// 	if (equipment == null)
+	// 	{
+	// 		log.debug("Equipment container is null");
+	// 		return;
+	// 	}
+	//
+	// 	log.info("=== Equipment Slots ===");
+	// 	for (int i = 0; i < equipment.size(); i++)
+	// 	{
+	// 		Item item = equipment.getItem(i);
+	// 		if (item != null)
+	// 		{
+	// 			log.info("Slot {}: Item ID {} (Quantity: {})", i, item.getId(), item.getQuantity());
+	// 		}
+	// 		else
+	// 		{
+	// 			log.debug("Slot {}: Empty", i);
+	// 		}
+	// 	}
+	// 	log.info("=======================");
+	// }
 
 	private void checkEquippedHorns()
 	{
-		ItemContainer equipment = client.getItemContainer(93);
+		ItemContainer equipment = client.getItemContainer(94);
 		checkEquippedHorns(equipment);
 	}
 
@@ -120,7 +127,7 @@ public class SoulflameRangePlugin extends Plugin
 	{
 		if (equipment == null)
 		{
-			log.info("Equipment container is null - setting equipped to false");
+			// log.info("Equipment container is null - setting equipped to false");
 			isSoulflameHornsEquipped = false;
 			currentRange = 0;
 			return;
@@ -137,7 +144,7 @@ public class SoulflameRangePlugin extends Plugin
 			{
 				found = true;
 				foundSlot = i;
-				log.info("Found Soulflame horn in equipment slot {}", i);
+				// log.info("Found Soulflame horn in equipment slot {}", i);
 				break;
 			}
 		}
@@ -145,14 +152,14 @@ public class SoulflameRangePlugin extends Plugin
 		boolean wasEquipped = isSoulflameHornsEquipped;
 		isSoulflameHornsEquipped = found;
 		
-		if (!found)
-		{
-			log.info("Soulflame horn NOT found in equipment - checked all {} slots", equipment.size());
-		}
+		// if (!found)
+		// {
+		// 	log.info("Soulflame horn NOT found in equipment - checked all {} slots", equipment.size());
+		// }
 		
 		if (wasEquipped != isSoulflameHornsEquipped)
 		{
-			log.info("Soulflame horns equipped status changed: {} -> {} (slot: {})", wasEquipped, isSoulflameHornsEquipped, foundSlot);
+			// log.info("Soulflame horns equipped status changed: {} -> {} (slot: {})", wasEquipped, isSoulflameHornsEquipped, foundSlot);
 			if (isSoulflameHornsEquipped)
 			{
 				updateRange();
@@ -160,82 +167,119 @@ public class SoulflameRangePlugin extends Plugin
 			else
 			{
 				currentRange = 0;
+				// log.info("Horn unequipped - range reset to 0");
 			}
 		}
-		else if (isSoulflameHornsEquipped)
+		else if (isSoulflameHornsEquipped && found)
 		{
 			// Update range even if already equipped (in case config changed)
 			updateRange();
+		}
+		else if (!found && isSoulflameHornsEquipped)
+		{
+			// Horn was equipped but now not found - reset
+			// log.info("Horn no longer found in equipment - resetting");
+			isSoulflameHornsEquipped = false;
+			currentRange = 0;
 		}
 	}
 
 	@Subscribe
 	public void onVarbitChanged(VarbitChanged event)
 	{
-		// If horn is equipped, check if this varbit change affects the radius
-		if (isSoulflameHornsEquipped)
+		// First verify the horn is actually equipped before updating range
+		// Re-check equipment to ensure state is correct
+		ItemContainer equipment = client.getItemContainer(94);
+		boolean actuallyEquipped = false;
+		
+		if (equipment != null)
 		{
-			int varbitId = event.getVarbitId();
-			int configuredVarbitId = config.varbitId();
-			
-			// Log all varbit changes when horn is equipped to help find the right one
-			if (configuredVarbitId == 0)
+			for (int i = 0; i < equipment.size(); i++)
 			{
-				int value = client.getVarbitValue(varbitId);
-				if (value >= 0 && value <= 3)
+				Item item = equipment.getItem(i);
+				if (item != null && item.getId() == SOULFLAME_HORNS)
 				{
-					log.info("Varbit {} changed to {} (possible radius value?)", varbitId, value);
+					actuallyEquipped = true;
+					break;
 				}
 			}
-			
-			// If this is the configured varbit, update the range
-			if (configuredVarbitId > 0 && varbitId == configuredVarbitId)
+		}
+		
+		// Only update if horn is actually equipped
+		if (actuallyEquipped)
+		{
+			// Update equipped state if it was wrong
+			if (!isSoulflameHornsEquipped)
 			{
-				log.info("Configured radius varbit {} changed, updating range", varbitId);
-				updateRange();
+				isSoulflameHornsEquipped = true;
+				// log.info("Horn detected as equipped via varbit change");
+			}
+			
+			int varbitId = event.getVarbitId();
+			
+			// Skip invalid varbit IDs
+			if (varbitId < 0)
+			{
+				return;
+			}
+			
+			// Check if this is the known radius varbit (16264)
+			// Auto-detect by checking if the varbit value is 0-3
+			try
+			{
+				int value = client.getVarbitValue(varbitId);
+				if (varbitId == 16264 || (value >= 0 && value <= 3))
+				{
+					// log.info("Radius varbit {} changed to {}, updating range", varbitId, value);
+					updateRange();
+					// Note: Sound check is now done in onAnimationChanged when special attack is used
+				}
+			}
+			catch (Exception e)
+			{
+				// Varbit doesn't exist or can't be read, ignore it
+				// log.debug("Could not read varbit {}: {}", varbitId, e.getMessage());
+			}
+		}
+		else
+		{
+			// Horn not equipped - reset if it was marked as equipped
+			if (isSoulflameHornsEquipped)
+			{
+				// log.info("Horn not found in equipment during varbit change - resetting");
+				isSoulflameHornsEquipped = false;
+				currentRange = 0;
 			}
 		}
 	}
 
 	private void updateRange()
 	{
-		// The Soulflame horn stores its radius (0-3) in a varbit
-		// First try the manually configured varbit ID
-		int configuredVarbitId = config.varbitId();
+		// First verify the horn is actually equipped before reading the varbit
+		ItemContainer equipment = client.getItemContainer(94);
+		boolean actuallyEquipped = false;
 		
-		log.info("Updating range - configured varbit ID: {}", configuredVarbitId);
-		
-		if (configuredVarbitId > 0)
+		if (equipment != null)
 		{
-			try
+			for (int i = 0; i < equipment.size(); i++)
 			{
-				int radiusValue = client.getVarbitValue(configuredVarbitId);
-				log.info("Read varbit {} value: {}", configuredVarbitId, radiusValue);
-				
-				if (radiusValue >= 0 && radiusValue <= 3)
+				Item item = equipment.getItem(i);
+				if (item != null && item.getId() == SOULFLAME_HORNS)
 				{
-					currentRange = radiusValue;
-					log.info("Successfully read horn radius from configured varbit {}: {}", configuredVarbitId, currentRange);
-					return;
-				}
-				else
-				{
-					log.warn("Configured varbit {} returned invalid value: {} (expected 0-3)", configuredVarbitId, radiusValue);
+					actuallyEquipped = true;
+					break;
 				}
 			}
-			catch (Exception e)
-			{
-				log.warn("Error reading configured varbit {}: {}", configuredVarbitId, e.getMessage());
-			}
-		}
-		else
-		{
-			log.info("No varbit ID configured. Please set 'Radius Varbit ID' in plugin settings.");
-			log.info("To find it: 1) Use a varbit inspector plugin, 2) Change horn radius in-game, 3) Note which varbit changes to 0-3");
 		}
 		
-		// Try common varbit IDs if no manual config
-		// Common ranges for item configs: 8000-9000, 10000-11000
+		if (!actuallyEquipped)
+		{
+			// log.debug("Horn not equipped - not updating range");
+			currentRange = 0;
+			return;
+		}
+		
+		// The Soulflame horn stores its radius (0-3) in varbit 16264
 		int[] possibleVarbits = {
 			16264, // Soulflame horn radius varbit
 		};
@@ -250,7 +294,7 @@ public class SoulflameRangePlugin extends Plugin
 				if (radiusValue >= 0 && radiusValue <= 3)
 				{
 					currentRange = radiusValue;
-					log.info("Found horn radius from varbit {}: {}", varbitId, currentRange);
+					// log.info("Found horn radius from varbit {}: {}", varbitId, currentRange);
 					found = true;
 					break;
 				}
@@ -265,7 +309,7 @@ public class SoulflameRangePlugin extends Plugin
 		{
 			// Default to 0 if we can't detect it
 			currentRange = 0;
-			log.warn("Could not detect horn radius. Current range set to: {}. Configure the 'Radius Varbit ID' in plugin settings.", currentRange);
+			// log.warn("Could not detect horn radius. Current range set to: {}", currentRange);
 		}
 	}
 
@@ -276,12 +320,108 @@ public class SoulflameRangePlugin extends Plugin
 
 	public int getRange()
 	{
+		// Always verify the horn is actually equipped before returning range
 		if (!isSoulflameHornsEquipped)
 		{
 			return 0;
 		}
+		
+		// Double-check equipment to ensure state is correct
+		ItemContainer equipment = client.getItemContainer(94);
+		if (equipment != null)
+		{
+			boolean found = false;
+			for (int i = 0; i < equipment.size(); i++)
+			{
+				Item item = equipment.getItem(i);
+				if (item != null && item.getId() == SOULFLAME_HORNS)
+				{
+					found = true;
+					break;
+				}
+			}
+			
+			if (!found)
+			{
+				// Horn not actually equipped - reset state
+				// log.debug("Horn not found in equipment in getRange() - resetting");
+				isSoulflameHornsEquipped = false;
+				currentRange = 0;
+				return 0;
+			}
+		}
+		
 		// Return the detected radius (0-3)
 		return currentRange;
+	}
+
+	@Subscribe
+	public void onAnimationChanged(AnimationChanged event)
+	{
+		// Detect when the player uses the horn special attack
+		if (event.getActor() == null || event.getActor() != client.getLocalPlayer())
+		{
+			return;
+		}
+
+		if (!isSoulflameHornsEquipped)
+		{
+			return;
+		}
+
+		int animationId = event.getActor().getAnimation();
+		// Log animation to help identify the special attack animation ID
+		// if (animationId != -1)
+		// {
+		// 	log.debug("Player animation changed to: {}", animationId);
+		// }
+
+		// Check if this is the horn special attack animation
+		// The Soulflame horn special attack typically uses animation 7514 or similar
+		// We'll trigger on any animation while horn is equipped and special attack energy is used
+		// For now, trigger on any animation change when horn is equipped (can be refined later)
+		// -1 means no animation (idle), so we check for any actual animation
+		if (animationId != -1)
+		{
+			// Check if special attack energy was used (varbit 300)
+			// int specialEnergy = client.getVarbitValue(300);
+			// log.debug("Special attack energy: {}", specialEnergy);
+			
+			// If special energy decreased or animation is the special attack, trigger sound check
+			// For now, we'll check on any non-idle animation when horn is equipped
+			// This can be refined to check for specific animation IDs
+			checkCustomSound();
+		}
+	}
+
+	@Subscribe
+	public void onSoundEffectPlayed(SoundEffectPlayed event)
+	{
+		// This event fires when any sound effect plays
+		// We can use this to detect horn sounds if we know the sound ID
+		// For now, we'll rely on animation changes to detect horn special usage
+	}
+
+
+	/**
+	 * Check if we should play the custom sound (1/1000 chance)
+	 * Called when the horn special attack is used
+	 */
+	private void checkCustomSound()
+	{
+		if (!isSoulflameHornsEquipped)
+		{
+			return;
+		}
+
+		// 1/1000 chance to play custom sound
+		int roll = random.nextInt(1000);
+		// log.debug("Sound roll: {} (need 0 to win)", roll);
+		if (roll == 0)
+		{
+			// log.info("🎉 SURPRISE! Rolled {} - playing custom horn sound!", roll);
+			soundPlayer.playMP3FromResource("/com/soulflamerange/wedhorn.mp3");
+		}
 	}
 
 	@Provides

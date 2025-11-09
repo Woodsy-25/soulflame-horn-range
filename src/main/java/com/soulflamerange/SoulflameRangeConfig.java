@@ -11,7 +11,7 @@ public interface SoulflameRangeConfig extends Config
 	@ConfigItem(
 		keyName = "showRange",
 		name = "Show Range",
-		description = "Display the range of Soulflame horns when equipped"
+		description = "Display the range text panel showing the range in tiles"
 	)
 	default boolean showRange()
 	{
@@ -21,7 +21,7 @@ public interface SoulflameRangeConfig extends Config
 	@ConfigItem(
 		keyName = "showRangeSquare",
 		name = "Show Range Square",
-		description = "Display a square on the game world showing the range"
+		description = "Display the border/square outline on the game world showing the range"
 	)
 	default boolean showRangeSquare()
 	{
@@ -39,23 +39,33 @@ public interface SoulflameRangeConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "varbitId",
-		name = "Radius Varbit ID",
-		description = "Varbit ID that stores the horn's radius (0-3). Use a varbit inspector to find this. Leave 0 to auto-detect."
+		keyName = "showOtherPlayers",
+		name = "Show Other Players' Range",
+		description = "Display range squares for other players who have the Soulflame horn equipped"
 	)
-	default int varbitId()
+	default boolean showOtherPlayers()
 	{
-		return 0;
+		return true;
 	}
 
 	@ConfigItem(
-		keyName = "showInEquipmentPanel",
-		name = "Show in Equipment Panel",
-		description = "Display range information in the equipment panel"
+		keyName = "otherPlayersColor",
+		name = "Other Players' Range Color",
+		description = "Color of the range square for other players"
 	)
-	default boolean showInEquipmentPanel()
+	default Color otherPlayersColor()
 	{
-		return true;
+		return Color.CYAN;
+	}
+
+	@ConfigItem(
+		keyName = "otherPlayersRadius",
+		name = "Other Players' Radius",
+		description = "Radius (0-3) to display for other players' Soulflame horns"
+	)
+	default int otherPlayersRadius()
+	{
+		return 3;
 	}
 }
 
