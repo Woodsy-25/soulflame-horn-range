@@ -1,7 +1,6 @@
 package com.soulflamerange;
 
 import java.io.InputStream;
-import javax.sound.sampled.AudioFileFormat;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
@@ -15,27 +14,14 @@ class SoundPlayer
 	private Clip currentClip;
 	private Thread playbackThread;
 
-	static
-	{
-		// Try to initialize MP3 SPI provider
-		try
-		{
-			// Check if MP3 is supported
-			AudioFileFormat.Type[] types = AudioSystem.getAudioFileTypes();
-			// log.info("Supported audio file types: {}", java.util.Arrays.toString(types));
-		}
-		catch (Exception e)
-		{
-			// log.warn("Could not check audio file types: {}", e.getMessage());
-		}
-	}
+	// WAV files are natively supported by Java's AudioSystem, no initialization needed
 
 	/**
-	 * Play an MP3 file from plugin resources asynchronously
-	 * @param resourcePath Path to the resource file (e.g., "/surprise.mp3")
+	 * Play a WAV file from plugin resources asynchronously
+	 * @param resourcePath Path to the resource file (e.g., "/wedhorn.wav")
 	 * @return true if playback started successfully
 	 */
-	boolean playMP3FromResource(String resourcePath)
+	boolean playWAVFromResource(String resourcePath)
 	{
 		if (resourcePath == null || resourcePath.isEmpty())
 		{
@@ -56,8 +42,9 @@ class SoundPlayer
 				// log.error("Sound resource not found: {}. Make sure the file is in src/main/resources/", resourcePath);
 				// Try alternative paths
 				String[] alternativePaths = {
-					"/wedhorn.mp3",
-					"/wedhorn.wav",
+					"/webhorn.wav",
+					"/com/soulflamerange/webhorn.wav",
+					resourcePath.replace(".mp3", ".wav"),
 					resourcePath.replace("/com/soulflamerange/", "/")
 				};
 				for (String altPath : alternativePaths)
@@ -94,12 +81,11 @@ class SoundPlayer
 			// log.info("Audio format: {}, channels: {}, sample rate: {}, encoding: {}", 
 			// 	format, format.getChannels(), format.getSampleRate(), format.getEncoding());
 
-			// If the format is not PCM (e.g., MP3), convert it to PCM
+			// WAV files are typically already in PCM format, but if not, convert to PCM
 			AudioFormat targetFormat = null;
 			if (format.getEncoding() != AudioFormat.Encoding.PCM_SIGNED && 
 			    format.getEncoding() != AudioFormat.Encoding.PCM_UNSIGNED)
 			{
-				// log.info("Converting audio format from {} to PCM...", format.getEncoding());
 				// Convert to PCM format that Java can play
 				targetFormat = new AudioFormat(
 					AudioFormat.Encoding.PCM_SIGNED,
@@ -116,7 +102,6 @@ class SoundPlayer
 				{
 					audioInputStream = AudioSystem.getAudioInputStream(targetFormat, audioInputStream);
 					format = targetFormat;
-					// log.info("Converted to PCM format: {}", format);
 				}
 				else
 				{

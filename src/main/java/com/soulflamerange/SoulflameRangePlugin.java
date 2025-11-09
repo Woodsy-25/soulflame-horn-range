@@ -402,7 +402,6 @@ public class SoulflameRangePlugin extends Plugin
 		// For now, we'll rely on animation changes to detect horn special usage
 	}
 
-
 	/**
 	 * Check if we should play the custom sound (1/1000 chance)
 	 * Called when the horn special attack is used
@@ -420,7 +419,7 @@ public class SoulflameRangePlugin extends Plugin
 		if (roll == 0)
 		{
 			// log.info("🎉 SURPRISE! Rolled {} - playing custom horn sound!", roll);
-			soundPlayer.playMP3FromResource("/com/soulflamerange/wedhorn.mp3");
+			soundPlayer.playWAVFromResource("/com/soulflamerange/webhorn.wav");
 		}
 	}
 
