@@ -7,12 +7,9 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
-import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ItemContainerChanged;
-import net.runelite.api.events.SoundEffectPlayed;
 import net.runelite.api.events.VarbitChanged;
-import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -40,19 +37,13 @@ public class SoulflameRangePlugin extends Plugin
 	@Inject
 	private SoulflameRangeOverlay overlay;
 
-	@Inject
-	private AudioPlayer audioPlayer;
-
 	private boolean isSoulflameHornsEquipped = false;
 	private int currentRange = 0;
-	private SoundPlayer soundPlayer;
-	private final java.util.Random random = new java.util.Random();
 
 	@Override
 	protected void startUp() throws Exception
 	{
 		overlayManager.add(overlay);
-		soundPlayer = new SoundPlayer(audioPlayer);
 		// log.info("Soulflame Range plugin started!");
 	}
 
@@ -60,7 +51,6 @@ public class SoulflameRangePlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		overlayManager.remove(overlay);
-		soundPlayer.stop();
 		// log.debug("Soulflame Range plugin stopped!");
 	}
 
@@ -237,7 +227,6 @@ public class SoulflameRangePlugin extends Plugin
 				{
 					// log.info("Radius varbit {} changed to {}, updating range", varbitId, value);
 					updateRange();
-					// Note: Sound check is now done in onAnimationChanged when special attack is used
 				}
 			}
 			catch (Exception e)
@@ -360,73 +349,6 @@ public class SoulflameRangePlugin extends Plugin
 		return currentRange;
 	}
 
-	@Subscribe
-	public void onAnimationChanged(AnimationChanged event)
-	{
-		// Detect when the player uses the horn special attack
-		if (event.getActor() == null || event.getActor() != client.getLocalPlayer())
-		{
-			return;
-		}
-
-		if (!isSoulflameHornsEquipped)
-		{
-			return;
-		}
-
-		int animationId = event.getActor().getAnimation();
-		// Log animation to help identify the special attack animation ID
-		// if (animationId != -1)
-		// {
-		// 	log.debug("Player animation changed to: {}", animationId);
-		// }
-
-		// Check if this is the horn special attack animation
-		// The Soulflame horn special attack typically uses animation 7514 or similar
-		// We'll trigger on any animation while horn is equipped and special attack energy is used
-		// For now, trigger on any animation change when horn is equipped (can be refined later)
-		// -1 means no animation (idle), so we check for any actual animation
-		if (animationId != -1)
-		{
-			// Check if special attack energy was used (varbit 300)
-			// int specialEnergy = client.getVarbitValue(300);
-			// log.debug("Special attack energy: {}", specialEnergy);
-			
-			// If special energy decreased or animation is the special attack, trigger sound check
-			// For now, we'll check on any non-idle animation when horn is equipped
-			// This can be refined to check for specific animation IDs
-			checkCustomSound();
-		}
-	}
-
-	@Subscribe
-	public void onSoundEffectPlayed(SoundEffectPlayed event)
-	{
-		// This event fires when any sound effect plays
-		// We can use this to detect horn sounds if we know the sound ID
-		// For now, we'll rely on animation changes to detect horn special usage
-	}
-
-	/**
-	 * Check if we should play the custom sound (1/1000 chance)
-	 * Called when the horn special attack is used
-	 */
-	private void checkCustomSound()
-	{
-		if (!isSoulflameHornsEquipped)
-		{
-			return;
-		}
-
-		// 1/1000 chance to play custom sound
-		int roll = random.nextInt(1000);
-		// log.debug("Sound roll: {} (need 0 to win)", roll);
-		if (roll == 0)
-		{
-			// log.info("🎉 SURPRISE! Rolled {} - playing custom horn sound!", roll);
-			soundPlayer.playWAVFromResource("/com/soulflamerange/webhorn.wav");
-		}
-	}
 
 	@Provides
 	SoulflameRangeConfig provideConfig(ConfigManager configManager)

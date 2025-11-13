@@ -114,13 +114,14 @@ class SoulflameRangeOverlay extends Overlay
 		int[] yPoints = new int[4];
 		boolean allVisible = true;
 
-		// Get the center point for calculating offsets
+		// Get the center point for calculating offsets at ground level
 		LocalPoint centerLocal = LocalPoint.fromWorld(client, playerWorldPoint);
 		if (centerLocal == null)
 		{
 			return;
 		}
-		net.runelite.api.Point centerScreen = Perspective.localToCanvas(client, centerLocal, playerWorldPoint.getPlane());
+		// Use zOffset of 0 to get ground level coordinates
+		net.runelite.api.Point centerScreen = Perspective.localToCanvas(client, centerLocal, playerWorldPoint.getPlane(), 0);
 		if (centerScreen == null)
 		{
 			return;
@@ -135,30 +136,17 @@ class SoulflameRangeOverlay extends Overlay
 				break;
 			}
 
-			net.runelite.api.Point screenPoint = Perspective.localToCanvas(client, localPoint, playerWorldPoint.getPlane());
+			// Convert to screen coordinates at ground level (zOffset of 0 means ground level)
+			net.runelite.api.Point screenPoint = Perspective.localToCanvas(client, localPoint, playerWorldPoint.getPlane(), 0);
 			if (screenPoint == null)
 			{
 				allVisible = false;
 				break;
 			}
 
-			// Extend the border outward by offsetting the screen coordinates
-			// Calculate direction from center to corner and extend it
-			int dx = screenPoint.getX() - centerScreen.getX();
-			int dy = screenPoint.getY() - centerScreen.getY();
-			// Normalize and extend by approximately half a tile (64 pixels at typical zoom)
-			double length = Math.sqrt(dx * dx + dy * dy);
-			if (length > 0)
-			{
-				int offsetPixels = 32; // Approximate half-tile offset
-				xPoints[i] = screenPoint.getX() + (int)((dx / length) * offsetPixels);
-				yPoints[i] = screenPoint.getY() + (int)((dy / length) * offsetPixels);
-			}
-			else
-			{
-				xPoints[i] = screenPoint.getX();
-				yPoints[i] = screenPoint.getY();
-			}
+			// Use the exact corner coordinates without any offset
+			xPoints[i] = screenPoint.getX();
+			yPoints[i] = screenPoint.getY();
 		}
 
 		if (allVisible)
